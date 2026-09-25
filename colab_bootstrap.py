@@ -33,8 +33,24 @@ RELEASE_BINARY_URLS = [
 RAW_FALLBACK_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/wewill_worker.py"
 DEFAULT_SERVER = "https://api.restream.wewill.club"
 
-# In-Memory RAM execution path
-RAM_DIR = "/dev/shm/wewill" if os.path.exists("/dev/shm") else "/tmp/wewill"
+def resolve_executable_ram_dir():
+    for candidate in ["/tmp/wewill", "/content/.wewill", "/dev/shm/wewill"]:
+        try:
+            os.makedirs(candidate, exist_ok=True)
+            test_file = os.path.join(candidate, ".exec_check")
+            with open(test_file, "wb") as f:
+                f.write(b"#!/bin/sh\nexit 0\n")
+            os.chmod(test_file, 0o755)
+            res = subprocess.run([test_file], capture_output=True, timeout=1)
+            try: os.remove(test_file)
+            except Exception: pass
+            if res.returncode == 0:
+                return candidate
+        except Exception:
+            pass
+    return "/tmp/wewill"
+
+RAM_DIR = resolve_executable_ram_dir()
 
 
 def wipe_ram_and_exit(code=1):
