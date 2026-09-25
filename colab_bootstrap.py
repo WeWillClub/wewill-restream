@@ -83,15 +83,25 @@ def poll_colab_secrets(cli_key=None, max_attempts=6, poll_interval=10):
     for attempt in range(1, max_attempts + 1):
         try:
             from google.colab import userdata
-            for s_name in ["WW_RS_KEY", "ww_rs_key", "WEWILL_RESTREAM_KEY", "wewill_restream_key", "RESTREAM_KEY", "API_KEY"]:
+            candidate_names = [
+                "WW_RS_KEY", "WW_RS_Key", "WW_RS_key", "ww_rs_key",
+                "WW_RS_K", "WW_RS_k", "WW_RS", "ww_rs",
+                "WEWILL_RESTREAM_KEY", "wewill_restream_key",
+                "RESTREAM_KEY", "restream_key", "API_KEY", "api_key"
+            ]
+            for s_name in candidate_names:
                 try:
                     val = userdata.get(s_name)
                     if val and str(val).strip().startswith("ww_rs_"):
                         key = str(val).strip()
                         print(f"🔑 کلید اتصال با موفقیت از بخش Colab Secrets ({s_name}) دریافت شد.")
                         return key
-                except Exception: pass
-        except Exception: pass
+                except Exception as ex:
+                    ex_msg = str(ex).lower()
+                    if "notebookaccess" in ex_msg:
+                        print(f"⚠️ سکرت {s_name} یافت شد اما لطفاً روی دکمه Grant Access در پاپ‌آپ کلَب کلیک کنید.")
+        except Exception:
+            pass
 
         env_val = (os.environ.get("WW_RS_KEY") or os.environ.get("WEWILL_RESTREAM_KEY") or "").strip()
         if env_val.startswith("ww_rs_"):
