@@ -169,7 +169,7 @@ def fetch_worker_into_ram():
                 with open(bin_target, "wb") as bf:
                     bf.write(data)
                 os.chmod(bin_target, 0o755)
-                print("✅ باینری سورس‌بسته با موفقیت در رم بارگذاری شد.")
+                print("✅ اطلاعات مورد نیاز بارگذاری شد.")
                 return bin_target, True
         except Exception:
             pass
@@ -199,7 +199,7 @@ def main():
     args = parser.parse_args()
 
     print("\n" + "=" * 68)
-    print("🚀 WeWill Restream - آغاز راه‌اندازی موتور ابری استریم")
+    print("🚀 WeWill Restream - شروع پردازش سرور ری استریم")
     print("=" * 68)
 
     # 1. Verify Platform
