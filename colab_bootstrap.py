@@ -18,11 +18,11 @@ import subprocess
 import shutil
 import urllib.request
 
-# Ensure UTF-8 output
+# Ensure UTF-8 output and instant unbuffered terminal printing
 if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace', line_buffering=True)
 if hasattr(sys.stderr, 'reconfigure'):
-    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace', line_buffering=True)
 
 # GitHub Sources for compiled worker
 GITHUB_REPO = "WeWillClub/wewill-restream"
@@ -158,8 +158,21 @@ def fetch_worker_into_ram():
         shutil.copy2(local_script, py_target)
         return py_target, False
 
-    # 2. Try download pre-compiled binary from GitHub Releases (beta or latest)
+    # 2. Fetch latest worker script from GitHub Raw (always up to date)
     print("⏳ در حال دریافت هسته پایدار استریم از GitHub...")
+    try:
+        req = urllib.request.Request(RAW_FALLBACK_URL, headers={'User-Agent': 'WeWill-Loader/2.0'})
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = resp.read()
+        if len(data) > 1000:
+            with open(py_target, "wb") as out:
+                out.write(data)
+            print("✅ آخرین نسخه هسته استریم با موفقیت در رم بارگذاری شد.")
+            return py_target, False
+    except Exception as e:
+        print(f"⚠️ دریافت سورس خام با خطا مواجه شد ({e})؛ بررسی باینری...")
+
+    # 3. Fallback: Download pre-compiled binary from GitHub Releases
     for bin_url in RELEASE_BINARY_URLS:
         try:
             req = urllib.request.Request(bin_url, headers={'User-Agent': 'WeWill-Loader/2.0'})
@@ -174,16 +187,8 @@ def fetch_worker_into_ram():
         except Exception:
             pass
 
-    # 3. Fallback: Download raw worker script from GitHub Raw
-    try:
-        req = urllib.request.Request(RAW_FALLBACK_URL, headers={'User-Agent': 'WeWill-Loader/2.0'})
-        with urllib.request.urlopen(req, timeout=20) as resp, open(py_target, "wb") as out:
-            shutil.copyfileobj(resp, out)
-        print("✅ هسته اجرایی ورکر از گیت‌هاب دریافت گردید.")
-        return py_target, False
-    except Exception as e:
-        print(f"❌ خطا در دریافت فایل‌های هسته از گیت‌هاب: {e}")
-        wipe_ram_and_exit(1)
+    print("❌ خطا در دریافت فایل‌های هسته از گیت‌هاب.")
+    wipe_ram_and_exit(1)
 
 
 def main():
