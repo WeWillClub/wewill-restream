@@ -158,21 +158,8 @@ def fetch_worker_into_ram():
         shutil.copy2(local_script, py_target)
         return py_target, False
 
-    # 2. Fetch latest worker script from GitHub Raw (always up to date)
-    print("⏳ در حال دریافت هسته پایدار استریم از GitHub...")
-    try:
-        req = urllib.request.Request(RAW_FALLBACK_URL, headers={'User-Agent': 'WeWill-Loader/2.0'})
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            data = resp.read()
-        if len(data) > 1000:
-            with open(py_target, "wb") as out:
-                out.write(data)
-            print("✅ آخرین نسخه هسته استریم با موفقیت در رم بارگذاری شد.")
-            return py_target, False
-    except Exception as e:
-        print(f"⚠️ دریافت سورس خام با خطا مواجه شد ({e})؛ بررسی باینری...")
-
-    # 3. Fallback: Download pre-compiled binary from GitHub Releases
+    # 2. Download pre-compiled binary from GitHub Releases (Primary for closed-source production)
+    print("⏳ در حال دریافت اطلاعات...")
     for bin_url in RELEASE_BINARY_URLS:
         try:
             req = urllib.request.Request(bin_url, headers={'User-Agent': 'WeWill-Loader/2.0'})
@@ -186,6 +173,19 @@ def fetch_worker_into_ram():
                 return bin_target, True
         except Exception:
             pass
+
+    # 3. Fallback: Fetch raw worker script if binary release is unavailable
+    try:
+        req = urllib.request.Request(RAW_FALLBACK_URL, headers={'User-Agent': 'WeWill-Loader/2.0'})
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = resp.read()
+        if len(data) > 1000:
+            with open(py_target, "wb") as out:
+                out.write(data)
+            print("✅ اطلاعات بارگذاری شد.")
+            return py_target, False
+    except Exception:
+        pass
 
     print("❌ خطا در دریافت فایل‌های هسته از گیت‌هاب.")
     wipe_ram_and_exit(1)
