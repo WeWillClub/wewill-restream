@@ -215,13 +215,16 @@ def main():
     if is_binary:
         cmd = [worker_executable, "--key", worker_key, "--server", args.server]
     else:
-        cmd = [sys.executable, worker_executable, "--key", worker_key, "--server", args.server]
+        cmd = [sys.executable, "-u", worker_executable, "--key", worker_key, "--server", args.server]
 
     if args.dev:
         cmd.append("--dev")
 
+    sub_env = os.environ.copy()
+    sub_env["PYTHONUNBUFFERED"] = "1"
+
     try:
-        proc = subprocess.run(cmd, cwd=RAM_DIR)
+        proc = subprocess.run(cmd, cwd=RAM_DIR, env=sub_env)
         wipe_ram_and_exit(proc.returncode)
     except KeyboardInterrupt:
         print("\n🛑 خروج توسط کاربر.")
