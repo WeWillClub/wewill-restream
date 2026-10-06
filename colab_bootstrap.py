@@ -1,10 +1,10 @@
 """
 ================================================================================
-🚀 WeWill Restream - Cloud Minimal Bootstrap Loader (v2.1)
+🚀 WeWill Restream - Google Colab Minimal Bootstrap Loader (v2.0)
 ================================================================================
-لودر سبک و عمومی جهت اجرا در نوت‌بوک Google Colab و Deepnote:
-- بررسی اصالت پلتفرم ابری (Google Colab / Deepnote)
-- پشتیبانی از کلید مستقیم در اسکریپت، آرگومان خط فرمان، سکرت و متغیرهای محیطی
+لودر سبک و عمومی جهت اجرا در نوت‌بوک Google Colab:
+- بررسی اصالت پلتفرم Google Colab
+- پایش هوشمند سکرت WW_RS_KEY (هر ۱۰ ثانیه تا ۶۰ ثانیه مهلت)
 - دریافت باینری نیتیو سورس‌بسته از GitHub Releases و اجرا مستقیماً در حافظه RAM
 - خودتخریبی و پاکسازی رم به محض پایان اجرا
 ================================================================================
@@ -33,14 +33,8 @@ RELEASE_BINARY_URLS = [
 RAW_FALLBACK_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/wewill_worker.py"
 DEFAULT_SERVER = "https://api.restream.wewill.club"
 
-# ==============================================================================
-# 🔑 پیکربندی کلید ورکر (اختیاری: در صورت تمایل کلید خود را مستقیماً اینجا وارد کنید)
-# Optional: Hardcode your worker key here (e.g. WORKER_KEY = "ww_rs_...")
-# ==============================================================================
-WORKER_KEY = ""
-
 def resolve_executable_ram_dir():
-    for candidate in ["/tmp/wewill", "/dev/shm/wewill", "/content/.wewill", "/work/.wewill"]:
+    for candidate in ["/tmp/wewill", "/content/.wewill", "/dev/shm/wewill"]:
         try:
             os.makedirs(candidate, exist_ok=True)
             test_file = os.path.join(candidate, ".exec_check")
@@ -76,80 +70,42 @@ def wipe_ram_and_exit(code=1):
     sys.exit(code)
 
 
-def detect_cloud_platform():
-    # 1. بررسی پلتفرم Deepnote
-    is_deepnote = (
-        "DEEPNOTE_PROJECT_ID" in os.environ
-        or "DEEPNOTE_WORKSPACE_ID" in os.environ
-        or "DEEPNOTE_ENV" in os.environ
-        or any(k.startswith("DEEPNOTE_") for k in os.environ)
-        or (os.name == "posix" and os.path.exists("/work") and (os.path.exists("/root/.deepnote") or os.path.exists("/init")))
-    )
-    if is_deepnote:
-        return "Deepnote", True
-
-    # 2. بررسی پلتفرم Google Colab
-    is_colab = (
-        "COLAB_RELEASE_TAG" in os.environ
-        or "COLAB_BACKEND_VERSION" in os.environ
-        or "COLAB_GPU" in os.environ
-        or (os.name == "posix" and (os.path.exists("/opt/colab") or os.path.exists("/content")))
-    )
-    if is_colab:
-        return "Google Colab", True
-
-    return "Unknown", False
-
-
-def verify_cloud_platform(dev_mode=False):
+def verify_colab_platform(dev_mode=False):
     if dev_mode:
         print("🛡️ [Dev Mode] اجرای محلی تایید شد.")
-        return "Local Dev"
+        return True
 
-    platform_name, is_valid = detect_cloud_platform()
-    if is_valid:
-        print(f"☁️ پلتفرم تایید شد: {platform_name}")
-        return platform_name
+    has_colab_dir = os.path.exists("/opt/colab") or os.path.exists("/content")
+    has_colab_env = "COLAB_RELEASE_TAG" in os.environ or "COLAB_BACKEND_VERSION" in os.environ
 
-    print("\n" + "!" * 68)
-    print("❌ [Security Alert] اجرای غیرمجاز.")
-    print("⚠️ موتور WeWill Restream منحصراً بر روی Google Colab و Deepnote اجرا می‌شود.")
-    print("!" * 68 + "\n")
-    wipe_ram_and_exit(1)
+    if not (has_colab_dir or has_colab_env):
+        print("\n" + "!" * 68)
+        print("❌ [Security Alert] اجرای غیرمجاز.")
+        print("⚠️ موتور WeWill Restream منحصراً بر روی Google Colab اجرا می‌شود.")
+        print("!" * 68 + "\n")
+        wipe_ram_and_exit(1)
+
+    return True
 
 
-def resolve_worker_key(cli_key=None, platform_name="Google Colab", max_attempts=6, poll_interval=10):
-    # 1. اولویت نخست: کلید ارسال‌شده در دستور استارت (--key)
-    clean_cli_key = str(cli_key or "").strip().strip("'\"")
-    if clean_cli_key.startswith("ww_rs_"):
-        print("🔑 کلید اتصال از دستور استارت دریافت شد.")
-        return clean_cli_key
+def poll_colab_secrets(cli_key=None, max_attempts=6, poll_interval=10):
+    if cli_key and str(cli_key).strip().startswith("ww_rs_"):
+        return str(cli_key).strip()
 
-    # 2. بررسی وجود کلید اختیاری در اسکریپت (در صورت تنظیم)
-    if WORKER_KEY and str(WORKER_KEY).strip().startswith("ww_rs_"):
-        key = str(WORKER_KEY).strip()
-        print("🔑 کلید اتصال از تنظیمات اسکریپت بارگذاری شد.")
-        return key
+    print("\n" + "=" * 68)
+    print("🔍 در حال پایش سکرت WW_RS_KEY در Google Colab...")
+    print("=" * 68)
 
-    candidate_names = [
-        "WW_RS_KEY", "WW_RS_Key", "ww_rs_key",
-        "WW_RS_K", "WW_RS_k", "WW_RS", "ww_rs",
-        "WEWILL_RESTREAM_KEY", "wewill_restream_key",
-        "RESTREAM_KEY", "restream_key", "API_KEY", "api_key"
-    ]
-
-    # 3. اولویت دوم: متغیرهای محیطی سیستم / Deepnote Environment Variables
-    for env_name in candidate_names:
-        env_val = os.environ.get(env_name, "").strip()
-        if env_val.startswith("ww_rs_"):
-            print(f"🔑 کلید اتصال با موفقیت از متغیر محیطی ({env_name}) دریافت شد.")
-            return env_val
-
-    # 4. اولویت سوم: بررسی بلافاصله سکرت‌های Google Colab (در صورت اجرا روی کلَب)
-    if platform_name == "Google Colab":
+    for attempt in range(1, max_attempts + 1):
         try:
             # pyrefly: ignore [missing-import]
             from google.colab import userdata
+            candidate_names = [
+                "WW_RS_KEY", "WW_RS_Key", "WW_RS_key", "ww_rs_key",
+                "WW_RS_K", "WW_RS_k", "WW_RS", "ww_rs",
+                "WEWILL_RESTREAM_KEY", "wewill_restream_key",
+                "RESTREAM_KEY", "restream_key", "API_KEY", "api_key"
+            ]
             for s_name in candidate_names:
                 try:
                     val = userdata.get(s_name)
@@ -164,58 +120,23 @@ def resolve_worker_key(cli_key=None, platform_name="Google Colab", max_attempts=
         except Exception:
             pass
 
-    # ۵. در صورتی که کلید در دستور استارت یا سکرت‌ها یافت نشد، فرآیند پایش و راهنمایی شروع می‌شود
-    print("\n" + "=" * 68)
-    print(f"🔍 در حال پایش کلید اتصال WeWill در {platform_name}...")
-    print("=" * 68)
-
-    for attempt in range(1, max_attempts + 1):
-        if platform_name == "Google Colab":
-            try:
-                # pyrefly: ignore [missing-import]
-                from google.colab import userdata
-                for s_name in candidate_names:
-                    try:
-                        val = userdata.get(s_name)
-                        if val and str(val).strip().startswith("ww_rs_"):
-                            key = str(val).strip()
-                            print(f"🔑 کلید اتصال با موفقیت از بخش Colab Secrets ({s_name}) دریافت شد.")
-                            return key
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
-        for env_name in candidate_names:
-            env_val = os.environ.get(env_name, "").strip()
-            if env_val.startswith("ww_rs_"):
-                print(f"🔑 کلید اتصال با موفقیت از متغیر محیطی ({env_name}) دریافت شد.")
-                return env_val
+        env_val = (os.environ.get("WW_RS_KEY") or os.environ.get("WEWILL_RESTREAM_KEY") or "").strip()
+        if env_val.startswith("ww_rs_"):
+            return env_val
 
         if attempt == 1:
-            if platform_name == "Deepnote":
-                print("💡 کلید اتصال در دستور استارت یا تنظیمات این پروژه یافت نشد.")
-                print("   لطفاً کلید اختصاصی خود را به یکی از روش‌های زیر تنظیم کنید:")
-                print("   ۱. ارسال کلید در دستور استارت: --key ww_rs_YOUR_KEY")
-                print("   ۲. در منوی سمت چپ Deepnote وارد بخش Integrations -> Environment variables شوید:")
-                print("      - نام متغیر: WW_RS_KEY")
-                print("      - مقدار: کلید اختصاصی شما از داشبورد وی‌ویل (شروع با ww_rs_...)")
-                print("--------------------------------------------------------------------")
-            else:
-                print("💡 کلید اتصال در دستور استارت یا سکرت‌های این نوت‌بوک یافت نشد.")
-                print("   لطفاً کلید اختصاصی خود را به یکی از روش‌های زیر تنظیم کنید:")
-                print("   ۱. ارسال کلید در دستور استارت: --key ww_rs_YOUR_KEY")
-                print("   ۲. در نوار ابزار سمت چپ گوگل کلَب روی آیکون کلید 🔑 (Secrets) بزنید:")
-                print("      - نام سکرت: WW_RS_KEY")
-                print("      - مقدار: کلید اختصاصی شما از داشبورد وی‌ویل (شروع با ww_rs_...)")
-                print("      - تیک گزینه «Notebook access» را فعال کنید.")
-                print("--------------------------------------------------------------------")
+            print("💡 کلید اتصال در سکرت‌های این نوت‌بوک یافت نشد.")
+            print("   لطفاً در نوار ابزار سمت چپ گوگل کلَب روی آیکون کلید 🔑 (Secrets) بزنید:")
+            print("   - نام سکرت: WW_RS_KEY")
+            print("   - مقدار: کلید اختصاصی شما از داشبورد وی‌ویل (شروع با ww_rs_...)")
+            print("   - تیک گزینه «Notebook access» را فعال کنید.")
+            print("--------------------------------------------------------------------")
 
         if attempt < max_attempts:
-            print(f"[{time.strftime('%H:%M:%S')}] ⏳ در انتظار ثبت کلید (تلاش {attempt} از {max_attempts} • بررسی مجدد در {poll_interval} ثانیه)...")
+            print(f"[{time.strftime('%H:%M:%S')}] ⏳ در انتظار ثبت سکرت در کلَب (تلاش {attempt} از {max_attempts} • بررسی مجدد در {poll_interval} ثانیه)...")
             time.sleep(poll_interval)
         else:
-            print(f"[{time.strftime('%H:%M:%S')}] ⏱️ مهلت ۶۰ ثانیه‌ای بررسی کلید به پایان رسید.")
+            print(f"[{time.strftime('%H:%M:%S')}] ⏱️ مهلت ۶۰ ثانیه‌ای ثبت سکرت به پایان رسید.")
 
     try:
         user_in = input("لطفاً کلید ورکر (ww_rs_...) را وارد کنید: ").strip()
@@ -283,10 +204,10 @@ def main():
     print("=" * 68)
 
     # 1. Verify Platform
-    detected_platform = verify_cloud_platform(dev_mode=args.dev)
+    verify_colab_platform(dev_mode=args.dev)
 
-    # 2. Resolve Worker Key
-    worker_key = resolve_worker_key(cli_key=args.key, platform_name=detected_platform)
+    # 2. Poll Secrets
+    worker_key = poll_colab_secrets(cli_key=args.key)
 
     # 3. Load Engine into RAM
     worker_executable, is_binary = fetch_worker_into_ram()
